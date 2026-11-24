@@ -54,6 +54,10 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+      # GitHub tarda unos segundos en listar el artefacto recién subido; sin esta espera deploy-pages a veces
+      # responde «Found 0 artifact(s)» aunque la subida haya ido bien.
+      - name: Esperar a que el artefacto esté disponible
+        run: sleep 25
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
