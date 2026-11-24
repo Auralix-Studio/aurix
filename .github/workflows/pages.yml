@@ -1,0 +1,59 @@
+name: Deploy static content to Pages
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # El entorno github-pages solo admite despliegues desde main y una release
+  # corre sobre su tag: se relanza este workflow sobre main.
+  redeploy-from-main:
+    if: github.event_name == 'release' && !github.event.release.prerelease && !github.event.release.draft
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Pages on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+  deploy:
+    if: github.event_name != 'release'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@v5
+        with:
+          # Release tags identify app binaries; website source lives on main.
+          ref: main
+      - name: Verify staging and release validation
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Stage website and current update manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/prepare_site.py
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
